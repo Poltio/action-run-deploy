@@ -92,12 +92,18 @@ runs:
       run: |-
         docker push ${{ env.ar_image_tag }}
 
+    - name: Get url friendly version tag
+      shell: bash
+      run: |
+        TAG=${{ inputs.IMAGE_TAG }}
+        echo "BRANCH_URL=${TAG//./_}" >> $GITHUB_ENV
+
     - id: "deploy"
       uses: "google-github-actions/deploy-cloudrun@v1"
       with:
         service: ${{ inputs.CLOUD_RUN_SERVICE_NAME }}
         image: ${{ env.ar_image_tag }}
-        tag: ${{ inputs.IMAGE_TAG }}
+        tag: ${{ inputs.BRANCH_URL }}
         region: ${{ inputs.CLOUD_RUN_REGION }}
         env_vars: ${{ inputs.CLOUD_RUN_ENV_VARS }}
         secrets: ${{ inputs.CLOUD_RUN_SECRETS }}
