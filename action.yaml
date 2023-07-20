@@ -96,7 +96,7 @@ runs:
       shell: bash
       run: |
         TAG=${{ inputs.IMAGE_TAG }}
-        echo "BRANCH_URL=${TAG//./_}" >> $GITHUB_ENV
+        echo "BRANCH_URL=${TAG//./-}" >> $GITHUB_ENV
 
     - id: "deploy"
       uses: "google-github-actions/deploy-cloudrun@v1"
