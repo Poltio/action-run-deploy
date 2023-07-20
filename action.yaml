@@ -97,6 +97,7 @@ runs:
       with:
         service: ${{ inputs.CLOUD_RUN_SERVICE_NAME }}
         image: ${{ env.ar_image_tag }}
+        tag: ${{ inputs.IMAGE_TAG }}
         region: ${{ inputs.CLOUD_RUN_REGION }}
         env_vars: ${{ inputs.CLOUD_RUN_ENV_VARS }}
         secrets: ${{ inputs.CLOUD_RUN_SECRETS }}
