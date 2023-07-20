@@ -1,0 +1,102 @@
+name: GKE Deploy via Artifact Registry
+description: "Deploys containers to GKE via Google Artifact Registry"
+
+inputs:
+  GOOGLE_CLOUD_PROJECT_ID:
+    description: "Google Cloud Project ID you want to use."
+    required: true
+  GOOGLE_CLOUD_SERVICE_ACCOUNT_KEY:
+    description: "Google Cloud Service Account KEY"
+    required: true
+  DOCKER_BUILD_ARGS:
+    description: If you want to inject build params to docker build step.
+    required: true
+  GKE_ZONE:
+    description: "GKE Zone"
+    required: true
+  GKE_CLUSTER:
+    description: "Name of the cluster"
+    required: true
+  ARTIFACT_REGISTRY_REGION:
+    description: "Google Artifact Registry region you want to use"
+    required: true
+  ARTIFACT_REGISTRY_REPO:
+    description: "Google artifact Registry repository you want to store your build image in"
+    required: true
+  ARTIFACT_REGISTRY_IMAGE:
+    description: "Google Artifact Registry image"
+    required: true
+  IMAGE_TAG:
+    description: "Tag for your image"
+    required: true
+  GKE_CONFIG_DIR:
+    description: "K8S config file directory."
+    required: true
+  GKE_IMAGE_TEMPLATE:
+    description: "GKE Deployment Image Template"
+    required: true
+  CLOUD_RUN_SERVICE_NAME:
+    description: "Google Cloud Run Service name you want to deploy"
+    required: true
+  CLOUD_RUN_REGION:
+    description: "The region you want your service to run"
+    required: true
+  CLOUD_RUN_SECRETS:
+    description: "Cloud Run secrets to mount or use env vars "
+    required: false
+    default: ""
+  CLOUD_RUN_ENV_VARS:
+    description: "Cloud Run env vars "
+    required: false
+    default: ""
+
+outputs:
+  PREVIEW_URL:
+    description: "The url for the cloud run environment"
+    value: ${{ steps.deploy.outputs.url }}
+
+runs:
+  using: "composite"
+  steps:
+    - uses: actions/checkout@v3
+
+    - name: Setup Docker Buildx
+      uses: docker/setup-buildx-action@v2
+
+    - name: Auth Google Cloud
+      uses: google-github-actions/auth@v1
+      with:
+        credentials_json: "${{ inputs.GOOGLE_CLOUD_SERVICE_ACCOUNT_KEY }}"
+
+    - name: Set up Cloud SDK
+      uses: google-github-actions/setup-gcloud@v1
+      with:
+        project_id: ${{ inputs.GOOGLE_CLOUD_PROJECT_ID }}
+
+    - name: Setup Docker Auth
+      shell: bash
+      run: |-
+        gcloud --quiet auth configure-docker ${{ inputs.ARTIFACT_REGISTRY_REGION }}-docker.pkg.dev
+
+    - name: Setup AR image tag url
+      shell: bash
+      run: echo "ar_image_tag=${{ inputs.ARTIFACT_REGISTRY_REGION }}-docker.pkg.dev/${{ inputs.GOOGLE_CLOUD_PROJECT_ID }}/${{ inputs.ARTIFACT_REGISTRY_REPO }}/${{ inputs.ARTIFACT_REGISTRY_IMAGE }}:${{ inputs.IMAGE_TAG }}" >> $GITHUB_ENV
+
+    - name: Building the Docker Image
+      shell: bash
+      run: |-
+        docker build --tag "${{ env.ar_image_tag }}" --build-arg version="${{ inputs.IMAGE_TAG }}" ${{ inputs.DOCKER_BUILD_ARGS }} .
+
+    - name: Push the Image to Google Artifact Registry
+      shell: bash
+      run: |-
+        docker push ${{ env.ar_image_tag }}
+
+    - id: "deploy"
+      uses: "google-github-actions/deploy-cloudrun@v1"
+      with:
+        service: ${{ inputs.CLOUD_RUN_SERVICE_NAME }}
+        image: ${{ env.ar_image_tag }}
+        region: ${{ inputs.CLOUD_RUN_REGION }}
+        env_vars: ${{ inputs.CLOUD_RUN_ENV_VARS }}
+        secrets: ${{ inputs.CLOUD_RUN_SECRETS }}
