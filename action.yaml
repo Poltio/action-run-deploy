@@ -12,7 +12,8 @@ inputs:
     required: true
   DOCKER_BUILD_ARGS:
     description: If you want to inject build params to docker build step.
-    required: true
+    required: false
+    default: ""
   ARTIFACT_REGISTRY_REGION:
     description: Google Artifact Registry region you want to use
     required: true
@@ -75,14 +76,17 @@ runs:
         REPO: ${{ inputs.ARTIFACT_REGISTRY_REPO }}
         IMAGE: ${{ inputs.ARTIFACT_REGISTRY_IMAGE }}
         TAG: ${{ inputs.IMAGE_TAG }}
+      # Cloud Run revision tags only allow lowercase letters, digits and hyphens
       run: |
+        revision_tag="${TAG,,}"
+        revision_tag="${revision_tag//[^a-z0-9-]/-}"
         delimiter="$(openssl rand -hex 8)"
         {
           echo "ar_image_tag<<$delimiter"
           echo "${REGION}-docker.pkg.dev/${PROJECT}/${REPO}/${IMAGE}:${TAG}"
           echo "$delimiter"
           echo "revision_tag<<$delimiter"
-          echo "${TAG//./-}"
+          echo "$revision_tag"
           echo "$delimiter"
         } >> "$GITHUB_OUTPUT"
     - name: Building the Docker Image
@@ -91,8 +95,11 @@ runs:
         AR_IMAGE_TAG: ${{ steps.set-image-tag.outputs.ar_image_tag }}
         IMAGE_TAG: ${{ inputs.IMAGE_TAG }}
         BUILD_ARGS: ${{ inputs.DOCKER_BUILD_ARGS }}
-      # Note: $BUILD_ARGS is intentionally left unquoted here so that multiple build args split properly
-      run: docker build --tag "$AR_IMAGE_TAG" --build-arg version="$IMAGE_TAG" $BUILD_ARGS .
+      # Note: $BUILD_ARGS is intentionally left unquoted here so that multiple build args split properly;
+      # set -f stops that split from also expanding globs
+      run: |
+        set -f
+        docker build --tag "$AR_IMAGE_TAG" --build-arg version="$IMAGE_TAG" $BUILD_ARGS .
     - name: Push the Image to Google Artifact Registry
       shell: bash
       env:
