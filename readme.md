@@ -4,6 +4,16 @@ Builds the image, pushes it to Artifact Registry and deploys it to an existing
 Cloud Run service, tagging the revision with `IMAGE_TAG` (dots become dashes).
 Authenticates with Workload Identity Federation (no keys) since v1.
 
+The image is built on the runner's own Docker daemon, so the layer cache
+carries over between jobs on a self-hosted runner. It is built for
+`linux/amd64` unless `DOCKER_BUILD_ARGS` sets another `--platform`.
+
+Before the push, [Trivy](https://trivy.dev) scans the local image and fails
+the deploy on critical vulnerabilities that already have a fix. It runs from
+its pinned image, so the only requirement on the runner is Docker. To let a
+deploy through while a fix is pending, list the CVE IDs in a `.trivyignore`
+at the root of the repository, one per line.
+
 The service account needs `roles/artifactregistry.writer` on the registry
 repository (plus reader on any repository your Dockerfile pulls base images
 from), `roles/run.developer` on the Cloud Run service,
